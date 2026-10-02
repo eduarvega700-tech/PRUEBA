@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Tabla de multiplicar</title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+<body>
+
+<div class="container py-5">
+
+    <div class="card">
+
+        <div class="card-body">
+
+            <h1>Tabla de multiplicar</h1>
+
+            <p>
+                Escribe un número y genera su tabla del 1 al 10.
+            </p>
+
+            <form method="post">
+
+                <input
+                    type="number"
+                    name="numero"
+                    class="form-control mb-3"
+                    placeholder="Ej: 5"
+                    required
+                >
+
+                <button
+                    type="submit"
+                    class="btn btn-success"
+                >
+                    Mostrar tabla
+                </button>
+
+            </form>
+
+
+            {% if tabla %}
+
+                <div class="mt-4">
+
+                    <h3>Resultado</h3>
+
+                    {% for operacion in tabla %}
+
+                        <p>
+                            {{ operacion }}
+                        </p>
+
+                    {% endfor %}
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+
+</html>
