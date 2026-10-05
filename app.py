@@ -1,149 +1,132 @@
-# IMPORTAMOS LAS HERRAMIENTAS QUE VAMOS A UTILIZAR
 from flask import Flask, render_template, request
-
-# Nos permite conectar Python con MySQL
 import mysql.connector
 
 
-# CREAR LA APLICACIÓN FLASK
-app = Flask(__name__)
+# CLASE BASE DE DATOS (ENCAPSULACIÓN)
+class BaseDatos:
 
+    def __init__(self, host, user, password, database):
+        
+        self.__conexion = mysql.connector.connect(
+            host=host,
+            user=user,
+            password=password,
+            database=database
+        )
+        print("Conexión exitosa")
 
-# CONEXIÓN CON MYSQL
-conexion = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="",
-    database="par_impar"
-)
-
-print("Conexión exitosa")
-
-
-# RUTA PRINCIPAL
-@app.route("/", methods=["GET", "POST"])
-def inicio():
-
-    # COMPROBAMOS SI SE ENVIÓ UN FORMULARIO
-    if request.method == "POST":
-
-        # ==========================================
-        # EJERCICIO 1: PAR O IMPAR
-        # ==========================================
-
-        if "numero_par" in request.form:
-
-            # Recibimos el número
-            numero = int(request.form["numero_par"])
-
-            # Comprobamos si es par o impar
-            if numero % 2 == 0:
-                resultado = "El número es par"
-            else:
-                resultado = "El número es impar"
-
-            # Conectamos con MySQL
-            cursor = conexion.cursor()
-
-            # Instrucción SQL
-            sql = """
-            INSERT INTO resultados (numero, resultado)
-            VALUES (%s, %s)
-            """
-
-            # Valores que vamos a guardar
-            valores = (numero, resultado)
-
-            # Ejecutamos el INSERT
+    def ejecutar(self, sql, valores):
+        cursor = self.__conexion.cursor()
+        try:
             cursor.execute(sql, valores)
-
-            # Guardamos los cambios
-            conexion.commit()
-
-            # Cerramos el cursor
+            self.__conexion.commit()
+        finally:
             cursor.close()
 
-            # Mostramos el resultado
-            return render_template(
-                "index.html",
-                resultado=resultado
-            )
+
+# CLASE PADRE (HERENCIA)
+class Ejercicio:
+
+    def __init__(self, db):
+        self._db = db 
+
+    def procesar(self, valor):
+       
+        raise NotImplementedError("Implementar en la clase hija")
 
 
-        # ==========================================
-        # EJERCICIO 2: TABLA DE MULTIPLICAR
-        # ==========================================
+# CLASE 1: PAR O IMPAR
+class ParImpar(Ejercicio):
 
-        if "numero_tabla" in request.form:
+    def procesar(self, numero):
+        if numero % 2 == 0:
+            resultado = "El número es par"
+        else:
+            resultado = "El número es impar"
 
-            # Recibimos el número
-            numero = int(request.form["numero_tabla"])
-
-            # Creamos una lista vacía
-            tabla = []
-
-            # Repetimos del 1 al 10
-            for i in range(1, 11):
-
-                # Multiplicamos
-                resultado = numero * i
-
-                # Guardamos la operación
-                tabla.append(
-                    f"{numero} x {i} = {resultado}"
-                )
-
-            # Mostramos la tabla
-            return render_template(
-                "index.html",
-                tabla=tabla
-            )
+        self._db.ejecutar(
+            "INSERT INTO resultados (numero, resultado) VALUES (%s, %s)",
+            (numero, resultado)
+        )
+        return resultado
 
 
-        # ==========================================
-        # EJERCICIO 3: ADIVINA EL NÚMERO
-        # ==========================================
+# CLASE 2: TABLA DE MULTIPLICAR
+class TablaMultiplicar(Ejercicio):
 
-        if "intento" in request.form:
+    def procesar(self, numero):
+        tabla = [f"{numero} x {i} = {numero * i}" for i in range(1, 11)]
 
-            # Recibimos el intento
-            intento = int(request.form["intento"])
-
-            # Número secreto
-            numero_secreto = 7
-
-            # Mientras el intento no sea correcto
-            while True:
-
-                # Si el intento es menor
-                if intento < numero_secreto:
-
-                    mensaje = "El número es mayor"
-                    break
-
-                # Si el intento es mayor
-                elif intento > numero_secreto:
-
-                    mensaje = "El número es menor"
-                    break
-
-                # Si acertó
-                else:
-
-                    mensaje = "¡Correcto! Adivinaste el número"
-                    break
-
-            # Mostramos el mensaje
-            return render_template(
-                "index.html",
-                mensaje=mensaje
-            )
+        self._db.ejecutar(
+            "INSERT INTO tablas_multiplicar (numero, tabla_generada) VALUES (%s, %s)",
+            (numero, "\n".join(tabla))
+        )
+        return tabla
 
 
-    # MOSTRAR LA PÁGINA AL ENTRAR
-    return render_template("index.html")
+# CLASE 3: ADIVINA EL NÚMERO
+class AdivinaNumero(Ejercicio):
+
+    def __init__(self, db, numero_secreto=7):
+        super().__init__(db)
+        self.__numero_secreto = numero_secreto  
+
+    def procesar(self, intento):
+        if intento < self.__numero_secreto:
+            mensaje = "El número es mayor"
+        elif intento > self.__numero_secreto:
+            mensaje = "El número es menor"
+        else:
+            mensaje = "¡Correcto! Adivinaste el número"
+
+        self._db.ejecutar(
+            """
+            INSERT INTO adivina_numero (intento, numero_secreto, mensaje)
+            VALUES (%s, %s, %s)
+            """,
+            (intento, self.__numero_secreto, mensaje)
+        )
+        return mensaje
 
 
-# EJECUTAR LA APLICACIÓN
+# CREAR APLICACIÓN Y OBJETOS
+
+app = Flask(__name__)
+
+db = BaseDatos("localhost", "root", "", "par_impar")
+
+ejercicio_par_impar = ParImpar(db)
+ejercicio_tabla = TablaMultiplicar(db)
+ejercicio_adivina = AdivinaNumero(db)
+
+
+# RUTAS
+@app.route("/", methods=["GET", "POST"])
+def par_impar():
+    resultado = None
+    if request.method == "POST":
+        numero = int(request.form["numero"])
+        resultado = ejercicio_par_impar.procesar(numero)
+    return render_template("par_impar.html", resultado=resultado)
+
+
+@app.route("/tabla", methods=["GET", "POST"])
+def tabla():
+    resultado = None
+    if request.method == "POST":
+        numero = int(request.form["numero"])
+        resultado = ejercicio_tabla.procesar(numero)
+    return render_template("tabla_multiplicar.html", tabla=resultado)
+
+
+@app.route("/adivina", methods=["GET", "POST"])
+def adivina():
+    mensaje = None
+    if request.method == "POST":
+        intento = int(request.form["intento"])
+        mensaje = ejercicio_adivina.procesar(intento)
+    return render_template("adivina_numero.html", mensaje=mensaje)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
